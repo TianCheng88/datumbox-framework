@@ -47,7 +47,7 @@ import java.util.stream.Stream;
 /**
  * The Dataframe class stores a list of Records Objects and several meta-data. All
  * Machine Learning algorithms get as argument Dataframe objects. The class has an
- * internal static Builder class which can be used to generate Dataframe objects 
+ * internal static Builder class which can be used to generate Dataframe objects
  * from Text or CSV files.
  *
  * @author Vasilis Vryniotis <bbriniotis@datumbox.com>
@@ -75,7 +75,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
          * of the training files. The files should contain one training example
          * per row. If we want to parse a Text File of unknown category then
          * pass a single URI with null as key.
-         *
+         * <p>
          * The method requires as arguments a file with the category names and locations
          * of the training files, an instance of a TextExtractor which is used
          * to extract the keywords from the documents and the Storage Configuration
@@ -110,8 +110,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
                         //we call below the recalculateMeta()
                         dataset.set(rId, r);
                     }, configuration.getConcurrencyConfiguration());
-                }
-                catch (IOException ex) {
+                } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }
             }
@@ -122,7 +121,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
         /**
          * It builds a Dataframe object from a CSV file; the first line of the provided
          * CSV file must have a header with the column names.
-         *
+         * <p>
          * The method accepts the following arguments: A Reader object from where
          * we will read the contents of the csv file. The name column of the
          * response variable y. A map with the column names and their respective
@@ -145,11 +144,11 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
                                              char delimiter, char quote, String recordSeparator, Long skip, Long limit, Configuration configuration) {
             Logger logger = LoggerFactory.getLogger(Dataframe.Builder.class);
 
-            if(skip == null) {
+            if (skip == null) {
                 skip = 0L;
             }
 
-            if(limit == null) {
+            if (limit == null) {
                 limit = Long.MAX_VALUE;
             }
 
@@ -179,8 +178,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
 
                     if (!row.isConsistent()) {
                         logger.warn("WARNING: Skipping row {} because its size does not match the header size.", row.getRecordNumber());
-                    }
-                    else {
+                    } else {
                         Object y = null;
                         AssociativeArray xData = new AssociativeArray();
                         for (Map.Entry<String, TypeInference.DataType> entry : headerDataTypes.entrySet()) {
@@ -190,8 +188,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
                             Object value = TypeInference.DataType.parse(row.get(column), dataType); //parse the string value according to the DataType
                             if (yVariable != null && yVariable.equals(column)) {
                                 y = value;
-                            }
-                            else {
+                            } else {
                                 xData.put(column, value);
                             }
                         }
@@ -203,9 +200,40 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
                         dataset._unsafe_set(rId, r);
                     }
                 }, configuration.getConcurrencyConfiguration());
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 throw new RuntimeException(ex);
+            }
+            return dataset;
+        }
+
+
+        public static Dataframe parseFromData(String yVariable, LinkedHashMap<String, TypeInference.DataType> dataTypes, Configuration configuration, List<Map<String, Object>> samples) {
+            Logger logger = LoggerFactory.getLogger(Dataframe.Builder.class);
+            logger.info(">>>>parseFromData>>>>started>>>>");
+            if (!dataTypes.containsKey(yVariable)) {
+                logger.warn("WARNING: The file is missing the response variable column {}.", yVariable);
+            }
+            TypeInference.DataType yDataType = dataTypes.get(yVariable);
+            Map<String, TypeInference.DataType> xDataTypes = new HashMap<>(dataTypes);
+            xDataTypes.remove(yVariable);
+            Dataframe dataset = new Dataframe(configuration, yDataType, xDataTypes);
+            int rId = 0;
+            for (Map map : samples) {
+                Object y = null;
+                AssociativeArray xData = new AssociativeArray();
+                for (Map.Entry<String, TypeInference.DataType> entry : dataTypes.entrySet()) {
+                    String column = entry.getKey();
+                    TypeInference.DataType dataType = entry.getValue();
+                    Object value = TypeInference.DataType.parse(String.valueOf(map.get(column)), dataType);
+                    if (yVariable != null && yVariable.equals(column)) {
+                        y = value;
+                    } else {
+                        xData.put(column, value);
+                    }
+                }
+                Record r = new Record(xData, y);
+                dataset._unsafe_set(rId, r);
+                rId++;
             }
             return dataset;
         }
@@ -230,10 +258,10 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
         private TypeInference.DataType yDataType = null;
         private AtomicInteger atomicNextAvailableRecordId = new AtomicInteger();
 
-        @BigMap(keyClass=Object.class, valueClass=TypeInference.DataType.class, mapType=MapType.HASHMAP, storageHint=StorageHint.IN_MEMORY, concurrent=true)
+        @BigMap(keyClass = Object.class, valueClass = TypeInference.DataType.class, mapType = MapType.HASHMAP, storageHint = StorageHint.IN_MEMORY, concurrent = true)
         private Map<Object, TypeInference.DataType> xDataTypes;
 
-        @BigMap(keyClass=Integer.class, valueClass=Record.class, mapType=MapType.TREEMAP, storageHint=StorageHint.IN_DISK, concurrent=true)
+        @BigMap(keyClass = Integer.class, valueClass = Record.class, mapType = MapType.TREEMAP, storageHint = StorageHint.IN_DISK, concurrent = true)
         private Map<Integer, Record> records;
 
         /**
@@ -346,14 +374,15 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
         _close();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void close() {
-        if(stored) {
+        if (stored) {
             //if the dataset is stored in disk, just close the storage
             _close();
-        }
-        else {
+        } else {
             //if not try to delete it in case temporary files remained on disk
             delete();
         }
@@ -365,11 +394,9 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     private void _close() {
         try {
             storageEngine.close();
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             throw new RuntimeException(ex);
-        }
-        finally {
+        } finally {
             //Ensures that the Dataframe can't be used after _close() is called.
             data = null;
         }
@@ -431,10 +458,12 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      */
     @Override
     public boolean contains(Object o) {
-        return data.records.containsValue((Record)o);
+        return data.records.containsValue((Record) o);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean addAll(Collection<? extends Record> c) {
         c.stream().forEach(r -> {
@@ -443,30 +472,36 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
         return true;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean containsAll(Collection<?> c) {
         return data.records.values().containsAll(c);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Object[] toArray() {
         Object[] array = new Object[size()];
         int i = 0;
-        for(Record r : values()) {
+        for (Record r : values()) {
             array[i++] = r;
         }
         return array;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @SuppressWarnings("unchecked")
     public <T> T[] toArray(T[] a) {
         int size = size();
         if (a.length < size) {
-            a = (T[])java.lang.reflect.Array.newInstance(a.getClass().getComponentType(), size);
+            a = (T[]) java.lang.reflect.Array.newInstance(a.getClass().getComponentType(), size);
         }
         int i = 0;
         for (Record r : values()) {
@@ -485,7 +520,9 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
         return values().iterator();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Stream<Record> stream() {
         return StreamMethods.stream(values(), false);
@@ -503,7 +540,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     @Override
     public boolean remove(Object o) {
         Integer id = indexOf((Record) o);
-        if(id == null) {
+        if (id == null) {
             return false;
         }
         remove(id);
@@ -520,10 +557,10 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     @Override
     public boolean removeAll(Collection<?> c) {
         boolean modified = false;
-        for(Object o : c) {
-            modified |= remove((Record)o);
+        for (Object o : c) {
+            modified |= remove((Record) o);
         }
-        if(modified) {
+        if (modified) {
             recalculateMeta();
         }
         return modified;
@@ -539,15 +576,15 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     @Override
     public boolean retainAll(Collection<?> c) {
         boolean modified = false;
-        for(Map.Entry<Integer, Record> e : entries()) {
+        for (Map.Entry<Integer, Record> e : entries()) {
             Integer rId = e.getKey();
             Record r = e.getValue();
-            if(!c.contains(r)) {
+            if (!c.contains(r)) {
                 remove(rId);
                 modified = true;
             }
         }
-        if(modified) {
+        if (modified) {
             recalculateMeta();
         }
         return modified;
@@ -577,11 +614,11 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      * @return
      */
     public Integer indexOf(Record o) {
-        if(o!=null) {
-            for(Map.Entry<Integer, Record> e : entries()) {
+        if (o != null) {
+            for (Map.Entry<Integer, Record> e : entries()) {
                 Integer rId = e.getKey();
                 Record r = e.getValue();
-                if(o.equals(r)) {
+                if (o.equals(r)) {
                     return rId;
                 }
             }
@@ -615,7 +652,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      * Sets the record of a particular id in the dataset. If the record does not
      * exist it will be added with the specific id and the next added record will
      * have as id the next integer.
-     *
+     * <p>
      * Note that the meta-data are partially updated. This means that if the replaced
      * Record contained a column which is now no longer available in the dataset,
      * then the meta-data will not refect this update (the column will continue to exist
@@ -669,7 +706,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     public FlatDataList getXColumn(Object column) {
         FlatDataList flatDataList = new FlatDataList();
 
-        for(Record r : values()) {
+        for (Record r : values()) {
             flatDataList.add(r.getX().get(column));
         }
 
@@ -685,7 +722,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     public FlatDataList getYColumn() {
         FlatDataList flatDataList = new FlatDataList();
 
-        for(Record r : values()) {
+        for (Record r : values()) {
             flatDataList.add(r.getY());
         }
 
@@ -701,7 +738,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     public void dropXColumns(Set<Object> columnSet) {
         columnSet.retainAll(data.xDataTypes.keySet()); //keep only those columns that are already known to the Meta data of the Dataframe
 
-        if(columnSet.isEmpty()) {
+        if (columnSet.isEmpty()) {
             return;
         }
 
@@ -715,7 +752,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
             AssociativeArray xData = r.getX().copy();
             boolean modified = xData.keySet().removeAll(columnSet);
 
-            if(modified) {
+            if (modified) {
                 Record newR = new Record(xData, r.getY(), r.getYPredicted(), r.getYPredictedProbabilities());
 
                 //safe to call in this context. we already updated the meta when we modified the xDataTypes
@@ -737,8 +774,8 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     public Dataframe getSubset(FlatDataList idsCollection) {
         Dataframe d = new Dataframe(configuration);
 
-        for(Object id : idsCollection) {
-            d.add(get((Integer)id));
+        for (Object id : idsCollection) {
+            d.add(get((Integer) id));
         }
         return d;
     }
@@ -749,17 +786,19 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
     public void recalculateMeta() {
         data.yDataType = null;
         data.xDataTypes.clear();
-        for(Record r : values()) {
+        for (Record r : values()) {
             updateMeta(r);
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Dataframe copy() {
         Dataframe d = new Dataframe(configuration);
 
-        for(Map.Entry<Integer, Record> e : entries()) {
+        for (Map.Entry<Integer, Record> e : entries()) {
             Integer rId = e.getKey();
             Record r = e.getValue();
             d.set(rId, r);
@@ -831,7 +870,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      * @return
      */
     public Iterable<Record> values() {
-        return () -> new Iterator<Record>(){
+        return () -> new Iterator<Record>() {
             private final Iterator<Record> it = data.records.values().iterator();
 
             /** {@inheritDoc} */
@@ -869,7 +908,7 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      */
     public Record _unsafe_set(Integer rId, Record r) {
         //move ahead the next id
-        data.atomicNextAvailableRecordId.updateAndGet(x -> (x<rId)?Math.max(x+1,rId+1):x);
+        data.atomicNextAvailableRecordId.updateAndGet(x -> (x < rId) ? Math.max(x + 1, rId + 1) : x);
 
         return data.records.put(rId, r);
     }
@@ -895,18 +934,18 @@ public class Dataframe implements Collection<Record>, Copyable<Dataframe>, Savab
      * @param r
      */
     private void updateMeta(Record r) {
-        for(Map.Entry<Object, Object> entry : r.getX().entrySet()) {
+        for (Map.Entry<Object, Object> entry : r.getX().entrySet()) {
             Object column = entry.getKey();
             Object value = entry.getValue();
 
-            if(value!=null) {
+            if (value != null) {
                 data.xDataTypes.putIfAbsent(column, TypeInference.getDataType(value));
             }
         }
 
-        if(data.yDataType == null) {
+        if (data.yDataType == null) {
             Object value = r.getY();
-            if(value!=null) {
+            if (value != null) {
                 data.yDataType = TypeInference.getDataType(r.getY());
             }
         }
